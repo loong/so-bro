@@ -1,0 +1,46 @@
+#!/usr/bin/env python3
+
+import os
+import sys
+from select import select
+from subprocess import Popen, PIPE
+
+command = ['python']
+err = []
+
+if len(sys.argv) > 1:
+    command = ['python'] + sys.argv[1:]
+
+with Popen(command, stdout=PIPE, stderr=PIPE) as p:
+    readable = {
+        p.stdout.fileno(): sys.stdout.buffer,
+        p.stderr.fileno(): sys.stderr.buffer,
+    }
+
+    while readable:
+        for fd in select(readable, [], [])[0]:
+            data = os.read(fd, 1024) # read available
+            if not data: # EOF
+                del readable[fd]
+                continue
+            else:
+                readable[fd].write(data)
+                readable[fd].flush()
+
+            if fd == p.stderr.fileno():
+                datastr = str(data, 'utf8')
+                if datastr == '>>> ':
+                    continue
+                
+                err.append(datastr)
+
+                # TODO send error to server
+
+print('----------------------------------------------------------------------')
+if not err:
+    print('No Errors')
+    exit(0)
+
+print('Has Errors')
+print()
+print(''.join(err))
